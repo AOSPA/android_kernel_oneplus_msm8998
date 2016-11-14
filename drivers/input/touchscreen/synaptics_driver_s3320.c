@@ -58,6 +58,8 @@
 #include <linux/project_info.h>
 #include "synaptics_baseline.h"
 
+#include <linux/moduleparam.h>
+
 /*----------------------Global Define--------------------------------*/
 
 #define TP_UNKNOWN 0
@@ -151,6 +153,9 @@ struct test_header {
 #define KEY_GESTURE_SWIPE_DOWN  KEY_F14
 #endif
 
+bool haptic_feedback_disable = false;
+module_param(haptic_feedback_disable, bool, 0644);
+
 /*********************for Debug LOG switch*******************/
 // #define DEBUG
 #define TPD_ERR(a, arg...)  pr_err(TPD_DEVICE ": " a, ##arg)
@@ -193,6 +198,8 @@ static struct synaptics_ts_data *ts_g;
 static struct workqueue_struct *synaptics_wq;
 static struct workqueue_struct *get_base_report;
 static struct proc_dir_entry *prEntry_tp;
+
+void qpnp_hap_ignore_next_request(void);
 
 #ifdef SUPPORT_GESTURE
 static uint32_t clockwise;
@@ -1254,6 +1261,10 @@ static void gesture_judge(struct synaptics_ts_data *ts)
 		input_sync(ts->input_dev);
 		input_report_key(ts->input_dev, keyCode, 0);
 		input_sync(ts->input_dev);
+
+		if (haptic_feedback_disable)
+			qpnp_hap_ignore_next_request();
+
 	} else {
 		ret = i2c_smbus_read_i2c_block_data(ts->client,
 						    F12_2D_CTRL20, 3,
