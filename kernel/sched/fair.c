@@ -716,16 +716,11 @@ static u64 sched_vslice(struct cfs_rq *cfs_rq, struct sched_entity *se)
 }
 
 #ifdef CONFIG_SMP
+
+#include "sched-pelt.h"
+
 static int select_idle_sibling(struct task_struct *p, int prev_cpu, int cpu);
 static unsigned long task_h_load(struct task_struct *p);
-
-/*
- * We choose a half-life close to 1 scheduling period.
- * Note: The tables runnable_avg_yN_inv and runnable_avg_yN_sum are
- * dependent on this value.
- */
-#define LOAD_AVG_PERIOD 32
-#define LOAD_AVG_MAX 47742 /* maximum possible load avg */
 
 /* Give new sched_entity start runnable values to heavy its load in infant time */
 void init_entity_runnable_average(struct sched_entity *se)
