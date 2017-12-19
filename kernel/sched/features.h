@@ -98,10 +98,13 @@ SCHED_FEAT(ENERGY_AWARE, false)
 #endif
 
 /*
- * Bias schedtune boosted tasks to higher capacity CPUs.
- * If disabled, no bias will be applied.
+ * Energy aware scheduling algorithm choices:
+ * EAS_PREFER_IDLE
+ *   Direct tasks in a schedtune.prefer_idle=1 group through
+ *   the EAS path for wakeup task placement. Otherwise, put
+ *   those tasks through the mainline slow path.
  */
-SCHED_FEAT(STUNE_BOOST_BIAS_BIG, true)
+SCHED_FEAT(EAS_PREFER_IDLE, true)
 
 /*
  * Minimum capacity capping. Keep track of minimum capacity factor when
@@ -117,3 +120,9 @@ SCHED_FEAT(MIN_CAPACITY_CAPPING, false)
  * If disabled, boosts will only bias tasks to higher-capacity CPUs.
  */
 SCHED_FEAT(SCHEDTUNE_BOOST_UTIL, true)
+
+/*
+ * Bias schedtune boosted tasks to higher capacity CPUs.
+ * If disabled, no bias will be applied.
+ */
+SCHED_FEAT(STUNE_BOOST_BIAS_BIG, true)
