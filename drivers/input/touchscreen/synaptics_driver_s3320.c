@@ -30,6 +30,7 @@
 #include <linux/interrupt.h>
 #include <linux/regulator/consumer.h>
 #include <linux/firmware.h>
+#include <linux/moduleparam.h>
 
 #include <linux/pinctrl/consumer.h>
 #include <linux/pinctrl/pinctrl.h>
@@ -213,6 +214,11 @@ static int gesture_switch;
 // Button key codes
 #define KEY_BUTTON_LEFT     KEY_BACK
 #define KEY_BUTTON_RIGHT    KEY_APPSELECT
+
+bool haptic_feedback_disable = false;
+module_param(haptic_feedback_disable, bool, 0644);
+
+void qpnp_hap_ignore_next_request(void);
 
 /*********************for Debug LOG switch*******************/
 // #define DEBUG
@@ -1295,6 +1301,8 @@ static void gesture_judge(struct synaptics_ts_data *ts)
 		input_sync(ts->input_dev);
 		input_report_key(ts->input_dev, keyCode, 0);
 		input_sync(ts->input_dev);
+		if (haptic_feedback_disable)
+			qpnp_hap_ignore_next_request();
 	} else {
 		ret = i2c_smbus_read_i2c_block_data(ts->client, F12_2D_CTRL20, 3, &(reportbuf[0x0]));
 		ret = reportbuf[2] & 0x20;
