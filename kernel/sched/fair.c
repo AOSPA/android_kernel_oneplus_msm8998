@@ -4221,8 +4221,13 @@ static inline u64 sched_cfs_bandwidth_slice(void)
  */
 void __refill_cfs_bandwidth_runtime(struct cfs_bandwidth *cfs_b)
 {
-	if (cfs_b->quota != RUNTIME_INF)
-		cfs_b->runtime = cfs_b->quota;
+	u64 now;
+
+	if (cfs_b->quota == RUNTIME_INF)
+		return;
+
+	now = sched_clock_cpu(smp_processor_id());
+	cfs_b->runtime = cfs_b->quota;
 }
 
 static inline struct cfs_bandwidth *tg_cfs_bandwidth(struct task_group *tg)
@@ -4879,7 +4884,11 @@ void start_cfs_bandwidth(struct cfs_bandwidth *cfs_b)
 		return;
 
 	cfs_b->period_active = 1;
+<<<<<<< HEAD
 	hrtimer_forward_now(&cfs_b->period_timer, cfs_b->period);
+=======
+	overrun = hrtimer_forward_now(&cfs_b->period_timer, cfs_b->period);
+>>>>>>> e998e6a736e4d... sched/fair: Fix low cpu usage with high throttling by removing expiration of cpu-local slices
 	hrtimer_start_expires(&cfs_b->period_timer, HRTIMER_MODE_ABS_PINNED);
 }
 
