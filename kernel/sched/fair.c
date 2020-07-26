@@ -10555,12 +10555,13 @@ static int active_load_balance_cpu_stop(void *data)
 	int push_task_detached = 0;
 	struct lb_env env = {
 		.sd		= sd,
-		.d>st_cpu	= target_cpu,
-		.d>st_rq		= target_rq,
+		.dst_cpu	= target_cpu,
+		.dst_rq		= target_rq,
 		.src_cpu	= busiest_rq->cpu,
 		.src_rq		= busiest_rq,
 		.idle		= CPU_IDLE,
 	};
+
 
 	rq_lock_irq(busiest_rq, &rf);
 	/*
