@@ -577,7 +577,7 @@ group_add_out:
 		if (err == 0)
 			err = err2;
 		mnt_drop_write_file(filp);
-		if (!err && (o_group > EXT4_SB(sb)->s_groups_count) &&
+		if (!err && (o_group < EXT4_SB(sb)->s_groups_count) &&
 		    ext4_has_group_desc_csum(sb) &&
 		    test_opt(sb, INIT_INODE_TABLE))
 			err = ext4_register_li_request(sb, o_group);
@@ -603,6 +603,14 @@ resizefs_out:
 
 		if ((flags & BLKDEV_DISCARD_SECURE) && !blk_queue_secdiscard(q))
 			return -EOPNOTSUPP;
+
+		/*
+		 * We haven't replayed the journal, so we cannot use our
+		 * block-bitmap-guided storage zapping commands.
+		 */
+		if (test_opt(sb, NOLOAD) && ext4_has_feature_journal(sb))
+			return -EROFS;
+
 		if (copy_from_user(&range, (struct fstrim_range __user *)arg,
 		    sizeof(range)))
 			return -EFAULT;
@@ -691,13 +699,19 @@ encryption_policy_out:
 		struct ext4_encryption_policy policy;
 		int err = 0;
 
-		if (!ext4_encrypted_inode(inode))
+		if (!ext4_encrypted_inode(inode)) {
+			pr_err("EXT4_IOC_GET_ENCRYPTION_POLICY: no entry!\n");
 			return -ENOENT;
+		}
 		err = ext4_get_policy(inode, &policy);
-		if (err)
+		if (err) {
+			pr_err("EXT4_IOC_GET_ENCRYPTION_POLICY: get policy failed:%d \n", err);
 			return err;
-		if (copy_to_user((void __user *)arg, &policy, sizeof(policy)))
+		}
+		if (copy_to_user((void __user *)arg, &policy, sizeof(policy))) {
+			pr_err("EXT4_IOC_GET_ENCRYPTION_POLICY: copy data failed!\n");
 			return -EFAULT;
+		}
 		return 0;
 #else
 		return -EOPNOTSUPP;

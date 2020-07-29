@@ -334,11 +334,10 @@ irq_set_affinity_notifier(unsigned int irq, struct irq_affinity_notify *notify)
 	desc->affinity_notify = notify;
 	raw_spin_unlock_irqrestore(&desc->lock, flags);
 
-	if (!notify && old_notify)
+	if (old_notify) {
 		cancel_work_sync(&old_notify->work);
-
-	if (old_notify)
 		kref_put(&old_notify->kref, old_notify->release);
+	}
 
 	return 0;
 }
@@ -634,6 +633,43 @@ int irq_set_irq_wake(unsigned int irq, unsigned int on)
 }
 EXPORT_SYMBOL(irq_set_irq_wake);
 
+static int mask_wake_irq_set(const char *buff, const struct kernel_param *kp)
+{
+	char buf[256], *b;
+	char *irq_num_str;
+	unsigned int irq_num;
+
+	pr_info("mask_wake_irq_set: %s\n",buff);
+	strlcpy(buf, buff, sizeof(buf));
+	b = strim(buf);
+
+	while (b) {
+		irq_num_str = strsep(&b, ",");
+		if (irq_num_str) {
+			sscanf(irq_num_str, "%u", &irq_num);
+			pr_info("mask_wake_irq_set irq_num: %d\n", irq_num);
+			irq_set_irq_wake(irq_num, 0);
+		}
+	}
+
+	return 0;
+}
+
+static int mask_wake_irq_get(char *buff, const struct kernel_param *kp)
+{
+	int cnt = 0;
+	cnt += snprintf(buff + cnt, PAGE_SIZE - cnt, "haha\n");
+	return cnt;
+}
+
+static const struct kernel_param_ops mask_wake_irq_ops = {
+	.set = mask_wake_irq_set,
+	.get = mask_wake_irq_get,
+};
+
+module_param_cb(mask_wake_irq, &mask_wake_irq_ops, NULL, 0644);
+
+
 /*
  * Internal function that tells the architecture code whether a
  * particular irq has been exclusively allocated or is available
@@ -882,6 +918,9 @@ irq_forced_thread_fn(struct irq_desc *desc, struct irqaction *action)
 
 	local_bh_disable();
 	ret = action->thread_fn(action->irq, action->dev_id);
+	if (ret == IRQ_HANDLED)
+		atomic_inc(&desc->threads_handled);
+
 	irq_finalize_oneshot(desc, action);
 	local_bh_enable();
 	return ret;
@@ -898,6 +937,9 @@ static irqreturn_t irq_thread_fn(struct irq_desc *desc,
 	irqreturn_t ret;
 
 	ret = action->thread_fn(action->irq, action->dev_id);
+	if (ret == IRQ_HANDLED)
+		atomic_inc(&desc->threads_handled);
+
 	irq_finalize_oneshot(desc, action);
 	return ret;
 }
@@ -975,8 +1017,6 @@ static int irq_thread(void *data)
 		irq_thread_check_affinity(desc, action);
 
 		action_ret = handler_fn(desc, action);
-		if (action_ret == IRQ_HANDLED)
-			atomic_inc(&desc->threads_handled);
 		if (action_ret == IRQ_WAKE_THREAD)
 			irq_wake_secondary(desc, action);
 

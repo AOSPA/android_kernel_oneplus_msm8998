@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2017, 2019 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -400,8 +400,10 @@ static void msm_jpegdma_stop_streaming(struct vb2_queue *q)
 		ret = -ETIME;
 	}
 
+	mutex_lock(&ctx->jdma_device->lock);
 	if (ctx->jdma_device->ref_count > 0)
 		msm_jpegdma_hw_put(ctx->jdma_device);
+	mutex_unlock(&ctx->jdma_device->lock);
 }
 
 /* Videobuf2 queue callbacks. */
@@ -585,9 +587,11 @@ static int msm_jpegdma_release(struct file *file)
 {
 	struct jpegdma_ctx *ctx = msm_jpegdma_ctx_from_fh(file->private_data);
 
+	mutex_lock(&ctx->jdma_device->lock);
 	/* release all the resources */
 	if (ctx->jdma_device->ref_count > 0)
 		msm_jpegdma_hw_put(ctx->jdma_device);
+	mutex_unlock(&ctx->jdma_device->lock);
 
 	atomic_set(&ctx->active, 0);
 	complete_all(&ctx->completion);

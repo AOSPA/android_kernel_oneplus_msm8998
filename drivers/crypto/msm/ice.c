@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -218,6 +218,8 @@ static int qcom_ice_bus_register(struct ice_device *ice_dev)
 	}
 	err = 0;
 
+	/* register again only if we didn't register previously */
+	if (!ice_dev->bus_vote.client_handle) {
 	ice_dev->bus_vote.client_handle =
 			msm_bus_scale_register_client(bus_pdata);
 	if (!ice_dev->bus_vote.client_handle) {
@@ -225,6 +227,7 @@ static int qcom_ice_bus_register(struct ice_device *ice_dev)
 				__func__);
 		err = -EFAULT;
 		goto out;
+		}
 	}
 
 	/* cache the vote index for minimum and maximum bandwidth */
@@ -1615,8 +1618,6 @@ static struct ice_device *get_ice_device_from_storage_type
 
 	list_for_each_entry(ice_dev, &ice_devices, list) {
 		if (!strcmp(ice_dev->ice_instance_type, storage_type)) {
-			pr_debug("%s: found ice device %pK\n",
-				__func__, ice_dev);
 			return ice_dev;
 		}
 	}
@@ -1729,7 +1730,7 @@ int qcom_ice_setup_ice_hw(const char *storage_type, int enable)
 	if (ice_dev == ERR_PTR(-EPROBE_DEFER))
 		return -EPROBE_DEFER;
 
-	if (!ice_dev)
+	if (!ice_dev || (ice_dev->is_ice_enabled == false))
 		return ret;
 
 	if (enable)

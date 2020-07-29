@@ -17,6 +17,7 @@
 #include <linux/pm_wakeirq.h>
 #include <linux/types.h>
 #include <trace/events/power.h>
+#include <linux/pm_wakeup.h>
 
 #include "power.h"
 
@@ -68,6 +69,10 @@ static struct wakeup_source deleted_ws = {
 	.lock =  __SPIN_LOCK_UNLOCKED(deleted_ws.lock),
 };
 
+#define WORK_TIMEOUT	(60*1000)
+static void ws_printk(struct work_struct *work);
+static DECLARE_DELAYED_WORK(ws_printk_work, ws_printk);
+
 /**
  * wakeup_source_prepare - Prepare a new wakeup source for initialization.
  * @ws: Wakeup source to prepare.
@@ -114,7 +119,6 @@ void wakeup_source_drop(struct wakeup_source *ws)
 	if (!ws)
 		return;
 
-	del_timer_sync(&ws->timer);
 	__pm_relax(ws);
 }
 EXPORT_SYMBOL_GPL(wakeup_source_drop);
@@ -202,6 +206,13 @@ void wakeup_source_remove(struct wakeup_source *ws)
 	list_del_rcu(&ws->entry);
 	spin_unlock_irqrestore(&events_lock, flags);
 	synchronize_srcu(&wakeup_srcu);
+
+	del_timer_sync(&ws->timer);
+	/*
+	 * Clear timer.function to make wakeup_source_not_registered() treat
+	 * this wakeup source as not registered.
+	 */
+	ws->timer.function = NULL;
 }
 EXPORT_SYMBOL_GPL(wakeup_source_remove);
 
@@ -865,6 +876,24 @@ void pm_print_active_wakeup_sources(void)
 	srcu_read_unlock(&wakeup_srcu, srcuidx);
 }
 EXPORT_SYMBOL_GPL(pm_print_active_wakeup_sources);
+
+static void ws_printk(struct work_struct *work)
+{
+	pm_print_active_wakeup_sources();
+	queue_delayed_work(system_freezable_wq, &ws_printk_work,
+		msecs_to_jiffies(WORK_TIMEOUT));
+}
+
+void pm_print_active_wakeup_sources_queue(bool on)
+{
+	if (on) {
+		queue_delayed_work(system_freezable_wq, &ws_printk_work,
+			msecs_to_jiffies(WORK_TIMEOUT));
+	} else {
+		cancel_delayed_work(&ws_printk_work);
+	}
+}
+EXPORT_SYMBOL_GPL(pm_print_active_wakeup_sources_queue);
 
 /**
  * pm_wakeup_pending - Check if power transition in progress should be aborted.

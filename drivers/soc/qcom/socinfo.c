@@ -539,6 +539,7 @@ static struct msm_soc_info cpu_of_id[] = {
 	[312] = {MSM_CPU_8996, "APQ8096pro"},
 	[315] = {MSM_CPU_8996, "MSM8996pro"},
 	[316] = {MSM_CPU_8996, "APQ8096pro"},
+	[387] = {MSM_CPU_8996, "APQ8096A"},
 
 	/* 8976 ID */
 	[266] = {MSM_CPU_8976, "MSM8976"},
@@ -581,6 +582,8 @@ static struct msm_soc_info cpu_of_id[] = {
 static enum msm_cpu cur_cpu;
 static int current_image;
 static uint32_t socinfo_format;
+
+uint32_t chip_serial_num;
 
 static struct socinfo_v0_1 dummy_socinfo = {
 	.format = SOCINFO_VERSION(0, 1),
@@ -1605,6 +1608,9 @@ int __init socinfo_init(void)
 	boot_stats_init();
 	socinfo_print();
 	arch_read_hardware_id = msm_read_hardware_id;
+
+	/*read serial number*/
+	chip_serial_num = socinfo_get_serial_number();
 	socinfo_init_done = true;
 
 	return 0;

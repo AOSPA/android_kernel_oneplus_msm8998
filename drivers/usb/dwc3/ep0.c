@@ -37,10 +37,25 @@
 #include "io.h"
 #include "debug.h"
 
+#include <linux/power/oem_external_fg.h>
 
 static bool enable_dwc3_u1u2;
 module_param(enable_dwc3_u1u2, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(enable_dwc3_u1u2, "Enable support for U1U2 low power modes");
+static struct notify_usb_enumeration_status
+		*usb_enumeration_status = NULL;
+
+void regsister_notify_usb_enumeration_status(
+	struct notify_usb_enumeration_status *status)
+{
+	if (usb_enumeration_status) {
+		usb_enumeration_status = status;
+		pr_err("multiple usb_enumeration_status called\n");
+	} else {
+		usb_enumeration_status = status;
+	}
+}
+EXPORT_SYMBOL(regsister_notify_usb_enumeration_status);
 
 static void __dwc3_ep0_do_control_status(struct dwc3 *dwc, struct dwc3_ep *dep);
 static void __dwc3_ep0_do_control_data(struct dwc3 *dwc,
@@ -601,8 +616,9 @@ static int dwc3_ep0_set_config(struct dwc3 *dwc, struct usb_ctrlrequest *ctrl)
 {
 	enum usb_device_state state = dwc->gadget.state;
 	u32 cfg;
-	int ret;
+	int ret, num;
 	u32 reg;
+	struct dwc3_ep	*dep;
 
 	cfg = le16_to_cpu(ctrl->wValue);
 
@@ -611,6 +627,32 @@ static int dwc3_ep0_set_config(struct dwc3 *dwc, struct usb_ctrlrequest *ctrl)
 		return -EINVAL;
 
 	case USB_STATE_ADDRESS:
+		/*
+		 * If tx-fifo-resize flag is not set for the controller, then
+		 * do not clear existing allocated TXFIFO since we do not
+		 * allocate it again in dwc3_gadget_resize_tx_fifos
+		 */
+		if (dwc->needs_fifo_resize) {
+			/* Read ep0IN related TXFIFO size */
+			dwc->last_fifo_depth = (dwc3_readl(dwc->regs,
+						DWC3_GTXFIFOSIZ(0)) & 0xFFFF);
+			/* Clear existing TXFIFO for all IN eps except ep0 */
+			for (num = 0; num < dwc->num_in_eps; num++) {
+				dep = dwc->eps[(num << 1) | 1];
+				if (num) {
+					dwc3_writel(dwc->regs,
+						DWC3_GTXFIFOSIZ(num), 0);
+					dep->fifo_depth = 0;
+				} else {
+					dep->fifo_depth = dwc->last_fifo_depth;
+				}
+
+				dev_dbg(dwc->dev, "%s(): %s fifo_depth:%x\n",
+					__func__, dep->name, dep->fifo_depth);
+				dbg_event(0xFF, "fifo_reset", dep->number);
+			}
+		}
+
 		ret = dwc3_ep0_delegate_req(dwc, ctrl);
 		/* if the cfg matches and the cfg is non zero */
 		if (cfg && (!ret || (ret == USB_GADGET_DELAYED_STATUS))) {
@@ -635,9 +677,6 @@ static int dwc3_ep0_set_config(struct dwc3 *dwc, struct usb_ctrlrequest *ctrl)
 							DWC3_DCTL_ACCEPTU2ENA);
 				dwc3_writel(dwc->regs, DWC3_DCTL, reg);
 			}
-
-			dwc->resize_fifos = true;
-			dwc3_trace(trace_dwc3_ep0, "resize FIFOs flag SET");
 		}
 		break;
 
@@ -775,6 +814,10 @@ static int dwc3_ep0_std_request(struct dwc3 *dwc, struct usb_ctrlrequest *ctrl)
 		ret = dwc3_ep0_handle_feature(dwc, ctrl, 1);
 		break;
 	case USB_REQ_SET_ADDRESS:
+		if (usb_enumeration_status
+			&& usb_enumeration_status->notify_usb_enumeration) {
+			usb_enumeration_status->notify_usb_enumeration(true);
+		}
 		dwc3_trace(trace_dwc3_ep0, "USB_REQ_SET_ADDRESS");
 		ret = dwc3_ep0_set_address(dwc, ctrl);
 		break;
@@ -1085,11 +1128,6 @@ static int dwc3_ep0_start_control_status(struct dwc3_ep *dep)
 static void __dwc3_ep0_do_control_status(struct dwc3 *dwc, struct dwc3_ep *dep)
 {
 	int ret;
-	if (dwc->resize_fifos) {
-		dwc3_trace(trace_dwc3_ep0, "Resizing FIFOs");
-		dwc3_gadget_resize_tx_fifos(dwc);
-		dwc->resize_fifos = 0;
-	}
 
 	ret = dwc3_ep0_start_control_status(dep);
 	if (WARN_ON_ONCE(ret))
