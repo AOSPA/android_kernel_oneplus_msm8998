@@ -345,7 +345,7 @@ static void do_overwritten(void)
 
 static noinline void __lkdtm_CORRUPT_STACK(void *stack)
 {
-	memset(stack, 'a', 64);
+    memset((void *)data, 0, sizeof(char)*8);
 }
 
 static noinline void corrupt_stack(void)
