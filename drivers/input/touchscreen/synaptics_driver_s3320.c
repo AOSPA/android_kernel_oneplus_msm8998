@@ -11,7 +11,6 @@
  **
  ** ------------------------ Revision History: -----------------------------
  **  <author> <data> <desc>
- **  bean.wu@BSP.TP modified for oem 2017-09-01 8998_O tp_driver
  ****************************************************************************/
 #include <linux/of_gpio.h>
 #include <linux/irq.h>
@@ -137,6 +136,16 @@ struct test_header {
 #define Wgestrue            13  /* W */
 #define Sgestrue            14  /* S */
 
+#define KEY_GESTURE_W 246 /* w */
+#define KEY_GESTURE_M 247 /* m */
+#define KEY_GESTURE_S 248 /* s */
+#define KEY_DOUBLE_TAP 249 /* double tap to wake */
+#define KEY_GESTURE_CIRCLE 250 /* draw circle to lunch camera */
+#define KEY_GESTURE_TWO_SWIPE 251 /*swipe two finger vertically to play/pause*/
+#define KEY_GESTURE_V 252 /* draw v to toggle flashlight */
+#define KEY_GESTURE_LEFT_V 253 /* draw left arrow for previous track */
+#define KEY_GESTURE_RIGHT_V 254 /* draw right arrow for next track */
+
 #define BIT0 (0x1 << 0)
 #define BIT1 (0x1 << 1)
 #define BIT2 (0x1 << 2)
@@ -163,7 +172,6 @@ int Wgestrue_gesture;/* W */
 int Mgestrue_gesture;/* M */
 int Sgestrue_gesture;/* S */
 static int gesture_switch;
-/*ruanbanmao@BSP add for tp gesture 2015-05-06 */
 #endif
 
 /*********************for Debug LOG switch*******************/
@@ -199,7 +207,6 @@ static int get_tp_base;
 static int limit_enable = 1;
 static void synaptics_tpedge_limitfunc(void);
 #endif
-static int probe_flag;
 /*static int ch_getbase_status = 0;*/
 /*struct timeval start_time,end_time;*/
 
@@ -352,8 +359,6 @@ static int synaptics_soft_reset(struct synaptics_ts_data *ts);
 static void synaptics_hard_reset(struct synaptics_ts_data *ts);
 static int set_changer_bit(struct synaptics_ts_data *ts);
 static int tp_baseline_get(struct synaptics_ts_data *ts, bool flag);
-extern void oem_gpio_control_enable(unsigned gpio);
-extern void oem_gpio_control_restore(unsigned gpio);
 
 /*----------------------------Using Struct------------------------------*/
 struct point_info {
@@ -426,7 +431,6 @@ const struct i2c_device_id *id)
 	}
 	queue_delayed_work_on(i, optimize_data.workqueue,
 	&(optimize_data.work), msecs_to_jiffies(300));
-    /*add by lifeng@bsp 2015-12-10 for only one cpu on line*/
 
 	return probe_ret;
 }
@@ -1199,6 +1203,43 @@ static void gesture_judge(struct synaptics_ts_data *ts)
 		gesture = (gesture_buffer[2] == 0x77) ? Wgestrue :
 		(gesture_buffer[2] == 0x6d) ? Mgestrue :
 		(gesture_buffer[2] == 0x73) ? Sgestrue : UnkownGestrue;
+	}
+
+	keyCode = UnkownGestrue;
+	/* Get key code based on registered gesture */
+	switch (gesture) {
+	case DouTap:
+		keyCode = KEY_DOUBLE_TAP;
+		break;
+	case UpVee:
+		keyCode = KEY_GESTURE_V;
+		break;
+	case DownVee:
+		keyCode = KEY_GESTURE_V;
+		break;
+	case LeftVee:
+		keyCode = KEY_GESTURE_RIGHT_V;
+		break;
+	case RightVee:
+		keyCode = KEY_GESTURE_LEFT_V;
+		break;
+	case Circle:
+		keyCode = KEY_GESTURE_CIRCLE;
+		break;
+	case DouSwip:
+		keyCode = KEY_GESTURE_TWO_SWIPE;
+		break;
+	case Wgestrue:
+		keyCode = KEY_GESTURE_W;
+		break;
+	case Mgestrue:
+		keyCode = KEY_GESTURE_M;
+		break;
+	case Sgestrue:
+		keyCode = KEY_GESTURE_S;
+		break;
+	default:
+		break;
 	}
 
 	TPD_ERR("detect %s gesture\n", gesture == DouTap ? "(double tap)" :
@@ -2858,6 +2899,12 @@ static int	synaptics_input_init(struct synaptics_ts_data *ts)
 	set_bit(BTN_TOOL_FINGER, ts->input_dev->keybit);
 #ifdef SUPPORT_GESTURE
 	set_bit(KEY_F4, ts->input_dev->keybit);/*doulbe-tap resume*/
+	set_bit(KEY_DOUBLE_TAP, ts->input_dev->keybit);
+	set_bit(KEY_GESTURE_CIRCLE, ts->input_dev->keybit);
+	set_bit(KEY_GESTURE_V, ts->input_dev->keybit);
+	set_bit(KEY_GESTURE_TWO_SWIPE, ts->input_dev->keybit);
+	set_bit(KEY_GESTURE_LEFT_V, ts->input_dev->keybit);
+	set_bit(KEY_GESTURE_RIGHT_V, ts->input_dev->keybit);
 	set_bit(KEY_APPSELECT, ts->input_dev->keybit);
 	set_bit(KEY_BACK, ts->input_dev->keybit);
 #endif
@@ -4678,9 +4725,6 @@ static int synaptics_ts_probe(struct i2c_client *client,
 	uint8_t buf[4];
 	uint32_t CURRENT_FIRMWARE_ID = 0;
 	uint32_t bootloader_mode;
-	int gpio1 = 87;
-	int gpio2 = 88;
-	int j;
 
 	TPD_ERR("%s  is called\n", __func__);
 
@@ -4733,9 +4777,7 @@ static int synaptics_ts_probe(struct i2c_client *client,
 		#ifdef SUPPORT_VIRTUAL_KEY
 			virtual_key_enable = 0;/*no valid report key*/
 		#endif
-		probe_flag++;
 			TPD_ERR("tp is no exist!\n");
-			TPD_ERR("probe_flag = %d\n", probe_flag);
 			goto err_check_functionality_failed;
 		}
 	}
@@ -4924,21 +4966,7 @@ exit_createworkqueue_failed:
 	get_base_report = NULL;
 
 err_check_functionality_failed:
-	if (probe_flag <= 6) {
-		for (j = 0; j < 100; j++) {
-		if (j == 0)
-		TPD_ERR("synaptics wihle j == 0\n");
-		oem_gpio_control_enable(gpio1);
-		oem_gpio_control_enable(gpio2);
-		msleep(1);
-		oem_gpio_control_restore(gpio1);
-		oem_gpio_control_restore(gpio2);
-		msleep(1);
-		}
-		tpd_power(ts, 0);
-		queue_delayed_work(optimize_data.workqueue,
-	    &(optimize_data.work), msecs_to_jiffies(3000));
-	}
+	tpd_power(ts, 0);
 err_alloc_data_failed:
 	tpd_i2c_driver.driver.pm = NULL;
 	kfree(ts);
