@@ -1,5 +1,6 @@
+#
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm64 4.4.232 Kernel Configuration
+# Linux/arm64 4.4.235 Kernel Configuration
 #
 CONFIG_ARM64=y
 CONFIG_64BIT=y
@@ -250,6 +251,7 @@ CONFIG_CC_STACKPROTECTOR=y
 CONFIG_CC_STACKPROTECTOR_STRONG=y
 CONFIG_LTO=y
 CONFIG_ARCH_SUPPORTS_LTO_CLANG=y
+# CONFIG_THINLTO is not set
 # CONFIG_LTO_NONE is not set
 CONFIG_LTO_CLANG=y
 CONFIG_HAVE_CONTEXT_TRACKING=y
@@ -4708,6 +4710,16 @@ CONFIG_DEFAULT_SECURITY_SELINUX=y
 # CONFIG_DEFAULT_SECURITY_SMACK is not set
 # CONFIG_DEFAULT_SECURITY_DAC is not set
 CONFIG_DEFAULT_SECURITY="selinux"
+
+#
+# Kernel hardening options
+#
+
+#
+# Memory initialization
+#
+CONFIG_INIT_STACK_NONE=y
+# CONFIG_INIT_STACK_ALL is not set
 CONFIG_CRYPTO=y
 
 #
