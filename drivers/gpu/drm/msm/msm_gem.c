@@ -1174,7 +1174,7 @@ struct drm_gem_object *msm_gem_import(struct drm_device *dev,
 
 	obj = msm_gem_new_impl(dev, size, MSM_BO_WC, false);
 	if (IS_ERR(obj))
-		return obj;
+		return obj;d
 
 	drm_gem_private_object_init(dev, obj, size);
 
