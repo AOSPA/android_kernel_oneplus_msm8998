@@ -12,11 +12,7 @@
 #ifndef __WCD_MBHC_V2_H__
 #define __WCD_MBHC_V2_H__
 
-/*zhiguang.su@MultiMedia.AudioDrv,
- *2015-10-26,
- *Modify for headset uevent report
- */
-#include<linux/switch.h>
+#include <linux/switch.h>
 #include <linux/wait.h>
 #include <linux/stringify.h>
 #include <linux/power_supply.h>
